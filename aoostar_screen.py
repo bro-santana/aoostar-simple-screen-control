@@ -2,6 +2,7 @@ import struct
 import argparse
 import serial
 import serial.tools.list_ports
+import json
 from PIL import Image, ImageDraw, ImageFont
 
 TARGET_VID = 0x0416 
@@ -96,10 +97,11 @@ def _image_to_rgb565(img):
         
     return data
 
-def send_image_data(ser, img_data):
+def send_image(ser, image):
     """
     Sends an image using the specific 47-chunk protocol.
     """
+    img_data = _image_to_rgb565(image)
     
     if len(img_data) != TOTAL_BYTES:
         raise ValueError(f"Image data size mismatch. Expected {TOTAL_BYTES}, got {len(img_data)}")
@@ -130,14 +132,13 @@ def send_image_data(ser, img_data):
     check_ack(ser, "img_cmd_end")
     print("Done.")
 
-def send_image(ser, image_path):
+def send_image_file(ser, image_path):
     """
     """
     print("Converting image...")
 
     img = Image.open(image_path)
-    img_data = _image_to_rgb565(img)
-    send_image_data(ser,img_data)
+    send_image(ser,img)
 
 
 def send_text(ser,text):
@@ -170,21 +171,100 @@ def send_text(ser,text):
     #position = (position[0] + draw.textlength("GPU Temp:", font=font) , position[1])
     #draw.text(position, "99C", fill="red", font=font)
 
-    img_data = _image_to_rgb565(image)
-    send_image_data(ser,img_data)
+    send_image(ser,image)
+
+
+def send_aoostar_panel_graphics(ser, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal", aoostar_screen_id=1):
+
+    with open(aoostar_data_path + "/Monitor3.json", 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+    #for panel in data['mianban']: #mianban == panel
+
+    try:
+        image = Image.open(aoostar_data_path + "/sys_img/" + data['diy'][aoostar_screen_id - 1]['img']).convert('RGBA')
+    except FileNotFoundError:
+        print(f"Error loading {aoostar_data_path + '/sys_img/' + data['diy'][aoostar_screen_id - 1]['img']}")
+        #exit(1)
+        image = Image.new("RGBA", (960, 376), color = 'black')
+
+    draw = ImageDraw.Draw(image)
+
+    for sensor in data['diy'][aoostar_screen_id - 1]['sensor']:
+
+        value = sensor['value'] + sensor['unit']
+        position = (sensor['x'], sensor['y']) 
+
+        if sensor['mode'] == 1:
+
+            try:
+                font = ImageFont.truetype(aoostar_data_path + "/fonts/" + sensor['fontFamily'] + ".ttf", sensor['fontSize'])
+            except IOError:
+                print(f"Error loading {aoostar_data_path + '/fonts/' + sensor['fontFamily'] + '.ttf'}")
+                #exit(1)
+                font = None # Use default font if not available
+
+            color = "white"
+
+            anchor = "lm"
+            if sensor['textAlign'] == "center": 
+                anchor = "mm"
+            elif sensor['textAlign'] == "right": 
+                anchor = "rm"
+
+            draw.text(position, value, fill=color, anchor=anchor, font=font)
+
+        elif sensor['mode'] == 3:
+            try:
+                overlay = Image.open(aoostar_data_path + "/sys_img/" + sensor['pic']).convert('RGBA')
+            except FileNotFoundError:
+                print(f"Error loading {aoostar_data_path + '/sys_img/' + sensor['pic']}")
+                #exit(1)
+                overlay = Image.new("RGBA", (10, 10), color = 'black')
+
+            width, height = overlay.size
+            overlay = overlay.crop((
+                0,
+                0,
+                int( width * float(sensor['value']) / float(sensor['maxValue']) ),
+                height
+                ))
+            image.paste(overlay, position, mask=overlay)
+
+    send_image(ser,image)
+    #image.save(f"mianban{panel}.png")
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Basic controls for Aoostar GEM12 PRO MAX or WTR MAX screens")
+    parser = argparse.ArgumentParser(description="Basic controls for Aoostar GEM12 PRO MAX or WTR MAX screens",argument_default=argparse.SUPPRESS)
 
-    parser.add_argument("-e", "--enable", action="store_true",
-                        help="Enables screen")
-    parser.add_argument("-d", "--disable", action="store_true",
-                        help="Disables screen")
-    parser.add_argument("-i", "--image", default="",
-                        help="Sends image to be displayed")
-    parser.add_argument("-t", "--text", default="",
-                        help="Sends text to be displayed")
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--on", action="store_true",
+                        dest="on",
+                        help="Powers screen on")
+    group.add_argument("--off", action="store_false",
+                        dest="on",
+                        help="Powers screen off")
+    #group.set_defaults(on=True)
+
+    subparsers = parser.add_subparsers(help='subcommands', dest='subcommand')
+    parser_image = subparsers.add_parser("image", aliases=['i'], help="Sends image to be displayed")
+    parser_image.add_argument("path", default="",
+                        help="Image path")
+
+    parser_text = subparsers.add_parser("text", aliases=['t'], help="Sends text to be displayed")
+    parser_text.add_argument("content", default="",
+                        help="Text to be displayed")
+
+    parser_panel = subparsers.add_parser("panel", aliases=['p'], help="Sends Aoostar-X Panel to be displayed")
+    parser_panel.add_argument("panel_id",
+                              default="1",
+                              help="Id of the panel to be displayed")
+
+    parser_panel.add_argument("aoostar_internal_data_path",
+                              default="C:/Program Files (x86)/AOOSTAR-X/_internal",
+                              nargs="?",
+                              help="Aoostar-X _internal path")
 
     args = parser.parse_args()
 
@@ -207,17 +287,18 @@ if __name__ == '__main__':
     #send_text(ser)
     # lcd_off(ser)
 
-    if args.enable:
-        lcd_on(ser)
-    elif args.disable:
-        lcd_off(ser)
+    if hasattr(args, 'on'):
+        if args.on:
+            lcd_on(ser)
+        else:
+            lcd_off(ser)
 
-    if not args.disable:
-        if args.image != "":
-            send_image(ser, args.image)
-        elif args.text != "":
-            send_text(ser, args.text)
-    else:
-        print("Won't send data with a screen off command")
+    match args.subcommand:
+        case 'image':
+            send_image_file(ser, args.path)
+        case 'text':
+            send_text(ser, args.content)
+        case 'panel':
+            send_aoostar_panel_graphics(ser, args.aoostar_internal_data_path, int(args.panel_id))
 
     ser.close()
