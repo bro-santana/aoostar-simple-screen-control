@@ -2,7 +2,7 @@ import struct
 import time
 import serial
 import serial.tools.list_ports
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 TARGET_VID = 0x0416 
 TARGET_PID = 0x90A1
@@ -68,11 +68,10 @@ def lcd_off(ser):
     ser.write(CMD_LCD_OFF)
     check_ack(ser, "lcd_off")
 
-def _image_to_rgb565(image_path):
+def _image_to_rgb565(img):
     """
     Converts any image to the specific 960x376 RGB565 byte array.
     """
-    img = Image.open(image_path)
     
     # Force RGB
     if img.mode != 'RGB':
@@ -97,31 +96,24 @@ def _image_to_rgb565(image_path):
         
     return data
 
-def send_image(ser, image_path):
+def send_image_data(ser, img_data):
     """
     Sends an image using the specific 47-chunk protocol.
     """
-    # 1. Prepare Data
-    print("Converting image...")
-    img_data = _image_to_rgb565(image_path)
     
     if len(img_data) != TOTAL_BYTES:
         raise ValueError(f"Image data size mismatch. Expected {TOTAL_BYTES}, got {len(img_data)}")
 
-    # 2. Send Header Start
     print("Sending Start Command...")
     ser.write(CMD_IMG_START)
     check_ack(ser, "img_cmd_start")
 
-    # 3. Send Data Chunks
-    # Logic based on Rust: Iterate chunks -> Construct Packet (Header + Offset + Data) -> Send
     print(f"Sending {len(img_data)} bytes in {CHUNK_COUNT} chunks (Chunk Size: {CHUNK_SIZE})...")
     
     for i in range(CHUNK_COUNT):
         offset = i * CHUNK_SIZE
         chunk = img_data[offset : offset + CHUNK_SIZE]
         
-        # Construct Packet: 
         # [CMD_CHUNK_HEADER] + [OFFSET (u32 LE)] + [CHUNK DATA]
         offset_bytes = struct.pack('<I', offset)
         packet = CMD_CHUNK_HEADER + offset_bytes + chunk
@@ -129,16 +121,48 @@ def send_image(ser, image_path):
         ser.write(packet)
         check_ack(ser, f"chunk_{i}")
         
-        # Optional: Progress bar
         print(f"\rProgress: {i+1}/{CHUNK_COUNT}", end='')
 
     print("\nAll chunks sent.")
 
-    # 4. Send Header End
     print("Sending End Command...")
     ser.write(CMD_IMG_END)
     check_ack(ser, "img_cmd_end")
     print("Done.")
+
+def send_image(ser, image_path):
+    """
+    """
+    print("Converting image...")
+
+    img = Image.open(image_path)
+    img_data = _image_to_rgb565(img)
+    send_image_data(img_data)
+
+
+def send_text(ser):
+    #try:
+    #    image = Image.open("input_image.jpg")
+    #except FileNotFoundError:
+    #    # Create a new image if the file isn't found for the example to work
+    #    image = Image.new("RGB", (WIDTH, HEIGHT), color = 'black')
+
+    image = Image.new("RGB", (WIDTH, HEIGHT), color = 'black')
+
+    draw = ImageDraw.Draw(image)
+
+    try:
+        font = ImageFont.truetype("fonts/Mx437_IBM_PS-55_re.ttf", 48)
+    except IOError:
+        font = None # Use default font if not available
+
+    text = "CPU Temp: 99C\nGPU Temp: 99C"
+    color = (255, 255, 255)
+    position = (50, 50) 
+    draw.text(position, text, fill=color, font=font)
+
+    img_data = _image_to_rgb565(image)
+    send_image_data(ser,img_data)
 
 if __name__ == '__main__':
 
@@ -157,7 +181,8 @@ if __name__ == '__main__':
                         timeout=2.0)
     
     lcd_on(ser)
-    send_image(ser, "test_image.png")
+    #send_image(ser, "test_image.png")
+    send_text(ser)
     # lcd_off(ser)
     
     ser.close()
