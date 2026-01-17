@@ -189,7 +189,7 @@ class HWiNFOReader:
         if self.h_map_file:
             self.kernel32.CloseHandle(self.h_map_file)
 
-    def read_data(self):
+    def read_data(self, include_raw_data = False) -> dict:
         # Cast the base address to the Header Struct
         header = HWiNFO_SENSORS_SHARED_MEM2.from_address(self.base_address)
         
@@ -205,15 +205,24 @@ class HWiNFOReader:
         #is_utf8_capable = (header.dwVersion >= 2)
         is_utf8_capable = False
         
-        data = {
-            "version": header.dwVersion,
-            "revision": header.dwRevision,
-            "poll_time": header.poll_time,
-            #"sensors_raw": {},
-            #"readings_raw": [],
-            "sensors": {},
-            "readings": []
-        }
+        if include_raw_data:
+            data = {
+                "version": header.dwVersion,
+                "revision": header.dwRevision,
+                "poll_time": header.poll_time,
+                "sensors_raw": {},
+                "readings_raw": [],
+                "sensors": {},
+                "readings": []
+            }
+        else:
+            data = {
+                "version": header.dwVersion,
+                "revision": header.dwRevision,
+                "poll_time": header.poll_time,
+                "sensors": {},
+                "readings": []
+            }
 
         # Calculate start address for Sensors
         sensor_section_addr = self.base_address + header.dwOffsetOfSensorSection
@@ -231,7 +240,8 @@ class HWiNFOReader:
                 "name": sensor.get_name(is_utf8_capable)
             }
 
-            #data["sensors_raw"][i] = sensor.get_python_dict()
+            if include_raw_data:
+                data["sensors_raw"][i] = sensor.get_python_dict()
 
         # Calculate start address for Readings
         reading_section_addr = self.base_address + header.dwOffsetOfReadingSection
@@ -257,7 +267,8 @@ class HWiNFOReader:
             }
             data["readings"].append(reading_data)
 
-            #data["readings_raw"].append(reading.get_python_dict())
+            if include_raw_data:
+                data["readings_raw"].append(reading.get_python_dict())
 
         return data
 

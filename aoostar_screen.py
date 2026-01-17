@@ -5,6 +5,7 @@ import serial.tools.list_ports
 import json
 from PIL import Image, ImageDraw, ImageFont
 
+from aoostar_data_model import AoostarDataModel
 from hwinfo_data import getHWiNFOData, convertHWiNFODataToAoostarCompatible
 
 TARGET_VID = 0x0416 
@@ -176,7 +177,7 @@ def send_text(ser,text):
     send_image(ser,image)
 
 
-def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
+def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data:AoostarDataModel=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
 
     with open(aoostar_data_path + "/Monitor3.json", 'r', encoding='utf-8') as file:
             data = json.load(file)
@@ -195,29 +196,14 @@ def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data=None,
     for sensor in data['diy'][aoostar_screen_id - 1]['sensor']:
 
         if real_sensor_data:
-            try:
-                delimiters = ['[', ']', '\'']
-                temp_delimiter = ' '
-                for delimiter in delimiters:
-                    sensor['label'] = sensor['label'].replace(delimiter, temp_delimiter)
-                labels = sensor['label'].split(temp_delimiter)
-                curr_sensor_data = real_sensor_data
-                for label in labels:
-                    if not label:
-                        continue
-                    if label.isdigit():
-                        curr_sensor_data = curr_sensor_data[int(label)]
-                    else:
-                        curr_sensor_data = curr_sensor_data[str(label)]
-                sensor['value'] = curr_sensor_data
-            except:
-                print(f"Error while: getting {labels} from real_sensor_data")
+            sensor['value'] = real_sensor_data.get(sensor['label'])
+            #print(f"{sensor['label']}:{sensor['value']}")
 
         #if isinstance(sensor['value'], float):
         if sensor['decimalDigits'] == 0:
-            sensor['value'] = round(sensor['value'])
+            sensor['value'] = round(float(sensor['value']))
         elif sensor['decimalDigits'] > 0:
-            sensor['value'] = round(sensor['value'],int(sensor['decimalDigits']))
+            sensor['value'] = round(float(sensor['value']),int(sensor['decimalDigits']))
         value = str(sensor['value']) + str(sensor['unit'])
         position = (sensor['x'], sensor['y']) 
 
@@ -328,7 +314,7 @@ if __name__ == '__main__':
         case 'text':
             send_text(ser, args.content)
         case 'panel':
-            if hasattr(args, 'on'):
+            if hasattr(args, 'hwinfo'):
                 data = convertHWiNFODataToAoostarCompatible(getHWiNFOData())
             else:
                 data = None
