@@ -1,5 +1,7 @@
 import json
+
 from datetime import datetime
+from requests import get
 
 from hwinfo_sharedmem import HWiNFOReader
 
@@ -43,7 +45,12 @@ def convertHWiNFODataToAoostarCompatible(snapshot):
     ssd_count_smart = 0
     ssd_count_drive = 0
 
+    #Find better way to adjust this non sourced data
     aoostar_data["DATE_m_d_h_m_2"] = datetime.now().strftime("%b %d/%H/%M") #Time differs from snapshot
+    try:
+        aoostar_data["net_ip_address"] = get('https://api.ipify.org').content.decode('utf8')
+    except:
+        print("Error getting external ip")
 
     for r in snapshot['readings']:
 
