@@ -5,6 +5,8 @@ import serial.tools.list_ports
 import json
 from PIL import Image, ImageDraw, ImageFont
 
+from hwinfo_data import getHWiNFOData, convertHWiNFODataToAoostarCompatible
+
 TARGET_VID = 0x0416 
 TARGET_PID = 0x90A1
 
@@ -144,15 +146,14 @@ def send_image_file(ser, image_path):
 
 def send_text(ser,text):
     #try:
-    #    image = Image.open("input_image.jpg")
-    #except FileNotFoundError:
-    #    # Create a new image if the file isn't found for the example to work
-    #    image = Image.new("RGB", (WIDTH, HEIGHT), color = 'black')
-
     color = "white"
     color_bg = "black"
     position = (50, 50) 
 
+    #    image = Image.open("input_image.jpg")
+    #except FileNotFoundError:
+    #    # Create a new image if the file isn't found for the example to work
+    #    image = Image.new("RGB", (WIDTH, HEIGHT), color=color_bg)
     image = Image.new("RGB", (WIDTH, HEIGHT), color=color_bg)
 
     draw = ImageDraw.Draw(image)
@@ -175,7 +176,7 @@ def send_text(ser,text):
     send_image(ser,image)
 
 
-def send_aoostar_panel_graphics(ser, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal", aoostar_screen_id=1):
+def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
 
     with open(aoostar_data_path + "/Monitor3.json", 'r', encoding='utf-8') as file:
             data = json.load(file)
@@ -193,7 +194,15 @@ def send_aoostar_panel_graphics(ser, aoostar_data_path="C:/Program Files (x86)/A
 
     for sensor in data['diy'][aoostar_screen_id - 1]['sensor']:
 
-        value = sensor['value'] + sensor['unit']
+        if real_sensor_data:
+            try:
+                sensor['value'] = real_sensor_data[sensor['label']]
+            except:
+                print(f"Error while:sensor['value'] = real_sensor_data[{sensor['label']}]")
+
+        if isinstance(sensor['value'], float):
+            sensor['value'] = round(sensor['value'])
+        value = str(sensor['value']) + str(sensor['unit'])
         position = (sensor['x'], sensor['y']) 
 
         if sensor['mode'] == 1:
@@ -233,7 +242,7 @@ def send_aoostar_panel_graphics(ser, aoostar_data_path="C:/Program Files (x86)/A
             image.paste(overlay, position, mask=overlay)
 
     send_image(ser,image)
-    #image.save(f"mianban{panel}.png")
+    #image.save(f"mianban{aoostar_screen_id}.png")
 
 if __name__ == '__main__':
 
@@ -266,6 +275,9 @@ if __name__ == '__main__':
                               default="C:/Program Files (x86)/AOOSTAR-X/_internal",
                               nargs="?",
                               help="Aoostar-X _internal path")
+
+    parser_panel.add_argument("--hwinfo", action="store_true",
+                              help="Get data from HWiNFO")
 
     args = parser.parse_args()
 
@@ -300,6 +312,10 @@ if __name__ == '__main__':
         case 'text':
             send_text(ser, args.content)
         case 'panel':
-            send_aoostar_panel_graphics(ser, args.aoostar_internal_data_path, int(args.panel_id))
+            if hasattr(args, 'on'):
+                data = convertHWiNFODataToAoostarCompatible(getHWiNFOData())
+            else:
+                data = None
+            send_aoostar_panel_graphics(ser, int(args.panel_id), data, args.aoostar_internal_data_path)
 
     ser.close()

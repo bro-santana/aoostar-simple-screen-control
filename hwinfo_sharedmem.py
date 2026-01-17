@@ -33,6 +33,12 @@ READING_TYPE_NAMES = {
     4: "Current", 5: "Power", 6: "Clock", 7: "Usage", 8: "Other"
 }
 
+def c_char_array_to_string(data):
+    return data.decode('mbcs', errors='replace')
+
+def c_ubyte_array_to_string(data):
+    return bytearray(data).split(b'\0', 1)[0].decode('utf-8', errors='replace')
+
 # ==============================================================================
 # CTYPES STRUCTURE DEFINITIONS
 # ==============================================================================
@@ -56,14 +62,32 @@ class HWiNFO_SENSORS_READING_ELEMENT(ctypes.Structure):
 
     def get_label(self, use_utf8=False):
         if use_utf8:
-            return bytearray(self.utfLabelUser).split(b'\0', 1)[0].decode('utf-8', errors='replace')
-        return self.szLabelUser.decode('mbcs', errors='replace')
+            return c_ubyte_array_to_string(self.utfLabelUser)
+        return c_char_array_to_string(self.szLabelUser)
+
+    def get_label_orig(self):
+        return c_char_array_to_string(self.szLabelOrig)
 
     def get_unit(self, use_utf8=False):
         if use_utf8:
-            return bytearray(self.utfUnit).split(b'\0', 1)[0].decode('utf-8', errors='replace')
-        return self.szUnit.decode('mbcs', errors='replace')
+            return c_ubyte_array_to_string(self.utfUnit)
+        return c_char_array_to_string(self.szUnit)
 
+    def get_python_dict(self):
+        return {
+            "tReading":      self.tReading,
+            "dwSensorIndex": self.dwSensorIndex,
+            "dwReadingID":   self.dwReadingID,
+            "szLabelOrig":   c_char_array_to_string(self.szLabelOrig),
+            "szLabelUser":   c_char_array_to_string(self.szLabelUser),
+            "szUnit":        c_char_array_to_string(self.szUnit),
+            "Value":         self.Value,
+            "ValueMin":      self.ValueMin,
+            "ValueMax":      self.ValueMax,
+            "ValueAvg":      self.ValueAvg,
+            "utfLabelUser":  c_ubyte_array_to_string(self.utfLabelUser),
+            "utfUnit":       c_ubyte_array_to_string(self.utfUnit),
+        }
 
 class HWiNFO_SENSORS_SENSOR_ELEMENT(ctypes.Structure):
     _pack_ = 1
@@ -77,9 +101,20 @@ class HWiNFO_SENSORS_SENSOR_ELEMENT(ctypes.Structure):
 
     def get_name(self, use_utf8=False):
         if use_utf8:
-            return bytearray(self.utfSensorNameUser).split(b'\0', 1)[0].decode('utf-8', errors='replace')
-        return self.szSensorNameUser.decode('mbcs', errors='replace')
+            return c_ubyte_array_to_string(self.utfSensorNameUser)
+        return c_char_array_to_string(self.szSensorNameUser)
 
+    def get_name_orig(self):
+        return c_char_array_to_string(self.szSensorNameOrig)
+
+    def get_python_dict(self):
+        return {
+            "dwSensorID":        self.dwSensorID,
+            "dwSensorInst":      self.dwSensorInst,
+            "szSensorNameOrig":  c_char_array_to_string(self.szSensorNameOrig),
+            "szSensorNameUser":  c_char_array_to_string(self.szSensorNameUser),
+            "utfSensorNameUser": c_ubyte_array_to_string(self.utfSensorNameUser),
+        }
 
 class HWiNFO_SENSORS_SHARED_MEM2(ctypes.Structure):
     _pack_ = 1
@@ -110,11 +145,14 @@ class HWiNFOReader:
 
         self.kernel32.OpenFileMappingW.restype = wintypes.HANDLE
         self.kernel32.OpenFileMappingW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+
         self.kernel32.MapViewOfFile.restype = wintypes.LPVOID
         self.kernel32.MapViewOfFile.argtypes = [wintypes.HANDLE, wintypes.DWORD, 
                                           wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t]
+
         self.kernel32.UnmapViewOfFile.argtypes = [ctypes.wintypes.LPCVOID]
         self.kernel32.UnmapViewOfFile.restype = ctypes.wintypes.BOOL
+
         self.kernel32.CloseHandle.restype = wintypes.BOOL
         self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
@@ -171,6 +209,8 @@ class HWiNFOReader:
             "version": header.dwVersion,
             "revision": header.dwRevision,
             "poll_time": header.poll_time,
+            #"sensors_raw": {},
+            #"readings_raw": [],
             "sensors": {},
             "readings": []
         }
@@ -187,8 +227,11 @@ class HWiNFOReader:
             data["sensors"][i] = {
                 "id": sensor.dwSensorID,
                 "inst": sensor.dwSensorInst,
+                "name_orig": sensor.get_name_orig(),
                 "name": sensor.get_name(is_utf8_capable)
             }
+
+            #data["sensors_raw"][i] = sensor.get_python_dict()
 
         # Calculate start address for Readings
         reading_section_addr = self.base_address + header.dwOffsetOfReadingSection
@@ -203,13 +246,18 @@ class HWiNFOReader:
             reading_data = {
                 "sensor_index": sensor_index,
                 "sensor_name": sensor_name,
+                "label_orig": reading.get_label_orig(),
                 "label": reading.get_label(is_utf8_capable),
                 "type": READING_TYPE_NAMES.get(reading.tReading, "Unknown"),
                 "value": reading.Value,
                 "unit": reading.get_unit(is_utf8_capable),
-                # Additional fields available: ValueMin, ValueMax, ValueAvg
+                "value_min": reading.ValueMin,
+                "value_max": reading.ValueMax,
+                "value_avg": reading.ValueAvg
             }
             data["readings"].append(reading_data)
+
+            #data["readings_raw"].append(reading.get_python_dict())
 
         return data
 
