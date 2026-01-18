@@ -17,5 +17,7 @@ The **WTR MAX** is also selectable in the Aoostar-X software for the **GEM12+ PR
 Panel images provided were reconstructed to look similar to Aoostar X's data, avoiding using ther artwork.
 The Photoshop file with the reconstruction is available for possible further customization.
 
+![default_1_hdd.jpeg](https://raw.githubusercontent.com/bro-santana/aoostar-screen-control/refs/heads/main/aoostar-x-compatible-data/sys_img/default_1_hdd.jpg)
+![default_1_index.jpeg](https://raw.githubusercontent.com/bro-santana/aoostar-screen-control/refs/heads/main/aoostar-x-compatible-data/sys_img/default_1_index.jpg)
 
 ⚠ AI USE WARNING⚠ : There was no AI image generation used on default_1_hdd.jpg and default_1_index.jpg. There was AI image generation used to reconstruct the background from default_2_hdd.jpg,default_2_index.jpg,default_3_hdd.jpg,default_3_index.jpg,default_3_hdd.jpg and default_3_index.jpg to something similar to the original, I'm currently looking for alternative similar backgrounds.
