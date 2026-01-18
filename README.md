@@ -1,6 +1,6 @@
 # AOOSTAR GEM12 PRO MAX / GEM12+ PRO / WTR MAX Screen Control
 
-⚠ Main functionality : in progress ⚠ 
+### ⚠ Main functionality : in progress ⚠ 
 
 The code provided is based on the reverse engineering published by [zehnm/aoostar-rs](https://github.com/zehnm/aoostar-rs).
 
@@ -12,8 +12,7 @@ The **WTR MAX** is also selectable in the Aoostar-X software for the **GEM12+ PR
 
 ⚠ But, as a warning, independent of your mini PC model, there’s no guarantee that it’s going to function correctly or safely on your hardware. Be careful. ⚠
 
-
-
+## Images
 
 Panel images provided were reconstructed to look similar to Aoostar X's data, avoiding using ther artwork.
 The Photoshop file with the reconstruction is available for possible further customization.
