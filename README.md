@@ -2,7 +2,26 @@
 
 ### Main functionality : in progress
 
-But use can show one frame of an Aoostar Style panel with:
+But you can use this code to turn your mini PC's screen on or off, and show some stuff on it. 
+```
+aoostar_screen.py [-h] [--on | --off] {image,i,text,t,panel,p} ...
+
+Basic controls for Aoostar GEM12 PRO MAX or WTR MAX screens
+
+positional arguments:
+  {image,i,text,t,panel,p}
+                        subcommands
+    image (i)           Sends image to be displayed
+    text (t)            Sends text to be displayed
+    panel (p)           Sends Aoostar-X Panel to be displayed
+
+options:
+  -h, --help            show this help message and exit
+  --on                  Powers screen on
+  --off                 Powers screen off
+```
+
+You can show one frame of an Aoostar Style panel:
 ```
 aoostar_screen.py panel [-h] [--hwinfo] panel_id [aoostar_internal_data_path]
 
