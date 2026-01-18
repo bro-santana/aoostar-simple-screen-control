@@ -1,5 +1,7 @@
 # AOOSTAR GEM12 PRO MAX / GEM12+ PRO / WTR MAX Screen Control
 
+⚠ Main functionality : in progress ⚠ 
+
 The code provided is based on the reverse engineering published by [zehnm/aoostar-rs](https://github.com/zehnm/aoostar-rs).
 
 My tests were made solely on a **GEM12 PRO MAX**.
