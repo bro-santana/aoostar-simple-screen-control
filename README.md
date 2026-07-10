@@ -1,8 +1,29 @@
 # AOOSTAR GEM12 PRO MAX / GEM12+ PRO / WTR MAX Screen Control
 
-### Main functionality : in progress
+## Desktop app
 
-But you can use this code to turn your mini PC's screen on or off, and show some stuff on it. 
+`aoostar_app.py` is a small desktop app that keeps the mini PC's screen updated in the background:
+
+- **Graphical interface** to pick which panel designs to show, with live previews of all panels found in the data path.
+- **Background updates**: refreshes the current panel with sensor data every few seconds and rotates between the selected panels on a timer (both intervals configurable).
+- **System tray icon**: closing the window hides the app to the tray; the tray menu can reopen the interface, pause updates, turn the screen on/off, and quit.
+- **HWiNFO integration**: uses live sensor values when HWiNFO is running with shared memory support enabled, and falls back to sample values otherwise.
+- Optional **start with Windows** (minimized to the tray) and **turn screen off on exit**.
+
+Install the dependencies and run it:
+
+```
+pip install -r requirements.txt
+python aoostar_app.py
+```
+
+Use `python aoostar_app.py --minimized` to start hidden in the tray. Settings are saved to `config.json` next to the app.
+
+Note: a full frame transfer takes a few seconds over the serial link, so very short refresh intervals are limited by the transfer speed.
+
+## Command line
+
+You can also use the CLI to turn your mini PC's screen on or off, and show some stuff on it. 
 ```
 aoostar_screen.py [-h] [--on | --off] {image,i,text,t,panel,p} ...
 

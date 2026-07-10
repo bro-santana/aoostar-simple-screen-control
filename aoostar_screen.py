@@ -44,6 +44,13 @@ TOTAL_BYTES = WIDTH * HEIGHT * 2  # 721,920 bytes
 CHUNK_SIZE = 47
 CHUNK_COUNT = TOTAL_BYTES // CHUNK_SIZE #15,360 bytes
 
+# Progress prints during transfers; the background app sets this to False
+VERBOSE = True
+
+def _log(message):
+    if VERBOSE:
+        print(message)
+
 def find_serial_port():
     """
     Finds the serial port name for the device's USB Vendor ID and Product ID.
@@ -85,7 +92,7 @@ def _image_to_rgb565(img):
     # Using LANCZOS for high-quality downsampling
     img = img.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
     
-    pixels = list(img.get_flattened_data())
+    pixels = list(img.getdata())
     data = bytearray()
     
     for r, g, b in pixels:
@@ -109,11 +116,11 @@ def send_image(ser, image):
     if len(img_data) != TOTAL_BYTES:
         raise ValueError(f"Image data size mismatch. Expected {TOTAL_BYTES}, got {len(img_data)}")
 
-    print("Sending Start Command...")
+    _log("Sending Start Command...")
     ser.write(CMD_IMG_START)
     check_ack(ser, "img_cmd_start")
 
-    print(f"Sending {len(img_data)} bytes in {CHUNK_COUNT} chunks (Chunk Size: {CHUNK_SIZE})...")
+    _log(f"Sending {len(img_data)} bytes in {CHUNK_COUNT} chunks (Chunk Size: {CHUNK_SIZE})...")
     
     for i in range(CHUNK_COUNT):
         offset = i * CHUNK_SIZE
@@ -129,17 +136,17 @@ def send_image(ser, image):
         #print(f"\rProgress: {i+1}/{CHUNK_COUNT}", end='')
 
     #print("\nAll chunks sent.")
-    print("All chunks sent.")
+    _log("All chunks sent.")
 
-    print("Sending End Command...")
+    _log("Sending End Command...")
     ser.write(CMD_IMG_END)
     check_ack(ser, "img_cmd_end")
-    print("Done.")
+    _log("Done.")
 
 def send_image_file(ser, image_path):
     """
     """
-    print("Converting image...")
+    _log("Converting image...")
 
     img = Image.open(image_path)
     send_image(ser,img)
@@ -177,10 +184,15 @@ def send_text(ser,text):
     send_image(ser,image)
 
 
-def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data:AoostarDataModel=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
-
+def load_monitor_config(aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
+    """Loads the Aoostar-X Monitor3.json describing the available panels."""
     with open(aoostar_data_path + "/Monitor3.json", 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        return json.load(file)
+
+def render_aoostar_panel(aoostar_screen_id=1, real_sensor_data:AoostarDataModel=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
+    """Renders one frame of an Aoostar-X style panel and returns it as a PIL Image."""
+
+    data = load_monitor_config(aoostar_data_path)
 
     #for panel in data['mianban']: #mianban == panel
 
@@ -243,8 +255,12 @@ def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data:Aoost
                 ))
             image.paste(overlay, position, mask=overlay)
 
-    send_image(ser,image)
+    return image
     #image.save(f"mianban{aoostar_screen_id}.png")
+
+def send_aoostar_panel_graphics(ser, aoostar_screen_id=1, real_sensor_data:AoostarDataModel=None, aoostar_data_path="C:/Program Files (x86)/AOOSTAR-X/_internal"):
+    image = render_aoostar_panel(aoostar_screen_id, real_sensor_data, aoostar_data_path)
+    send_image(ser, image)
 
 if __name__ == '__main__':
 
@@ -288,7 +304,8 @@ if __name__ == '__main__':
     if found_port:
         print(f"Device found at port: {found_port}")
     else:
-        print(f"Device with VID 0x{target_vid:04X} and PID 0x{target_pid:04X} not found.")
+        print(f"Device with VID 0x{TARGET_VID:04X} and PID 0x{TARGET_PID:04X} not found.")
+        exit(1)
 
     ser = serial.Serial(found_port,
                         baudrate=1500000,

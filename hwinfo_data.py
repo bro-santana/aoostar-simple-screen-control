@@ -1,24 +1,37 @@
 import json
+import time
 
 from datetime import datetime
 from requests import get
- 
+
 from aoostar_data_model import AoostarDataModel
 from hwinfo_sharedmem import HWiNFOReader
+
+# External IP cache so repeated conversions don't hit the network every time
+_EXTERNAL_IP_TTL_SECONDS = 300
+_external_ip_cache = {"value": "", "fetched_at": 0.0}
+
+def getExternalIP() -> str:
+    now = time.monotonic()
+    if _external_ip_cache["value"] and now - _external_ip_cache["fetched_at"] < _EXTERNAL_IP_TTL_SECONDS:
+        return _external_ip_cache["value"]
+    try:
+        _external_ip_cache["value"] = get('https://api.ipify.org', timeout=5).content.decode('utf8')
+        _external_ip_cache["fetched_at"] = now
+    except Exception:
+        print("Error getting external ip")
+    return _external_ip_cache["value"]
+
+# Avoid repeating the "HWiNFO not running" message on every refresh
+_hwinfo_error_printed = {"done": False}
 
 def getHWiNFOData() -> dict:
     try:
         with HWiNFOReader() as hwinfo:
-            print("Connected to HWiNFO Shared Memory...")
-            
             snapshot = hwinfo.read_data()
-            
+
             if "error" in snapshot:
                 print(f"Error: {snapshot['error']}")
-            else:
-                print(f"HWiNFO Version: {snapshot['version']}")
-                print(f"Total Sensors: {len(snapshot['sensors'])}")
-                print(f"Total Readings: {len(snapshot['readings'])}")
 
                 #print("-" * 60)
                 #print(f"{'SENSOR':<30} | {'LABEL':<20} | {'VALUE':<10} | {'UNIT'}")
@@ -34,7 +47,9 @@ def getHWiNFOData() -> dict:
             return snapshot
 
     except FileNotFoundError as e:
-        print(f"Connection Failed: {e}")
+        if not _hwinfo_error_printed["done"]:
+            print(f"Connection Failed: {e}")
+            _hwinfo_error_printed["done"] = True
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
@@ -47,10 +62,7 @@ def convertHWiNFODataToAoostarCompatible(snapshot) -> AoostarDataModel:
 
     #Find better way to adjust this non sourced data
     aoostar_data.DATE_m_d_h_m_2 = datetime.now().strftime("%b %d %H:%M") #Time differs from snapshot
-    try:
-        aoostar_data.net_ip_address = get('https://api.ipify.org').content.decode('utf8')
-    except:
-        print("Error getting external ip")
+    aoostar_data.net_ip_address = getExternalIP()
 
     for r in snapshot['readings']:
 
